@@ -171,13 +171,16 @@ Complete correction table (all integer sizes):
 | 23px | 24px | 23px | +1 |
 | 24px+ | matches | matches | 0 |
 
-**Fix implemented**: auto-detect by comparing canvas emoji width vs actual DOM emoji width (one DOM measurement per font, cached). Safari renders emoji wider than fontSize at small sizes but canvas and DOM agree — so no correction needed there. The original approach (canvas vs fontSize) over-corrected on Safari.
+**Root cause** (per Firefox developer Jonathan Kew): DPR mismatch in bitmap font metrics. DOM renders at devicePixelRatio=2, canvas2d uses effective DPR=1. Apple Color Emoji is a bitmap font with non-linear scaling — different DPRs select different bitmap strikes with different advance widths. Neither canvas nor DOM is "wrong"; they're measuring at different resolutions. Scalable emoji fonts (e.g. Twemoji Mozilla) don't have this issue. DOM width does NOT always equal fontSize for emoji — Apple Color Emoji intentionally renders wider than fontSize at small sizes on all browsers (Safari too).
 
-Filed as browser bugs:
-- Chrome: [issues.chromium.org/489494015](https://issues.chromium.org/issues/489494015) — emoji measureText inflation
-- Chrome: [issues.chromium.org/489579956](https://issues.chromium.org/issues/489579956) — system-ui canvas/DOM optical variant mismatch
-- Firefox: [bugzilla.mozilla.org/2020894](https://bugzilla.mozilla.org/show_bug.cgi?id=2020894) — emoji measureText inflation
-- Firefox: [bugzilla.mozilla.org/2020917](https://bugzilla.mozilla.org/show_bug.cgi?id=2020917) — system-ui canvas/DOM font resolution mismatch
+**Fix implemented**: auto-detect by comparing canvas emoji width vs actual DOM emoji width (one DOM measurement per font, cached). This captures the exact discrepancy regardless of cause. Safari renders emoji wider than fontSize but canvas and DOM agree — so correction = 0. The original approach (canvas vs fontSize) over-corrected on Safari.
+
+Browser bugs filed:
+- Chrome emoji: [issues.chromium.org/489494015](https://issues.chromium.org/issues/489494015)
+- Chrome system-ui: [issues.chromium.org/489579956](https://issues.chromium.org/issues/489579956)
+- Firefox emoji: [bugzilla.mozilla.org/2020894](https://bugzilla.mozilla.org/show_bug.cgi?id=2020894)
+- Firefox system-ui: [bugzilla.mozilla.org/2020917](https://bugzilla.mozilla.org/show_bug.cgi?id=2020917)
+- Safari: no bugs — canvas/DOM agree on everything
 
 ## Discovery: HarfBuzz guessSegmentProperties RTL bug
 
