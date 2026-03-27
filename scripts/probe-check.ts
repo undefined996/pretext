@@ -3,6 +3,7 @@ import {
   acquireBrowserAutomationLock,
   createBrowserSession,
   ensurePageServer,
+  getAvailablePort,
   loadHashReport,
   type BrowserKind,
 } from './browser-automation.ts'
@@ -114,7 +115,7 @@ function printReport(report: ProbeReport): void {
 }
 
 const browser = parseBrowser(parseStringFlag('browser'))
-const port = parseNumberFlag('port', Number.parseInt(process.env['PROBE_CHECK_PORT'] ?? '3210', 10))
+const requestedPort = parseNumberFlag('port', Number.parseInt(process.env['PROBE_CHECK_PORT'] ?? '0', 10))
 const text = requireFlag('text')
 const width = parseNumberFlag('width', 600)
 const font = parseStringFlag('font') ?? '18px serif'
@@ -128,6 +129,7 @@ const lock = await acquireBrowserAutomationLock(browser)
 const session = createBrowserSession(browser)
 
 try {
+  const port = await getAvailablePort(requestedPort === 0 ? null : requestedPort)
   const pageServer = await ensurePageServer(port, '/probe', process.cwd())
   serverProcess = pageServer.process
   const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`

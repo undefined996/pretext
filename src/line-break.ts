@@ -10,6 +10,7 @@ export type PreparedLineBreakData = {
   widths: number[]
   kinds: SegmentBreakKind[]
   breakableWidths: (number[] | null)[]
+  breakablePrefixWidths: (number[] | null)[]
   discretionaryHyphenWidth: number
 }
 
@@ -25,20 +26,36 @@ function isCollapsibleSpaceKind(kind: SegmentBreakKind): boolean {
   return kind === 'space'
 }
 
+function getBreakableAdvance(
+  graphemeWidths: number[],
+  graphemePrefixWidths: number[] | null,
+  graphemeIndex: number,
+  preferPrefixWidths: boolean,
+): number {
+  if (!preferPrefixWidths || graphemePrefixWidths === null) {
+    return graphemeWidths[graphemeIndex]!
+  }
+  return graphemePrefixWidths[graphemeIndex]! - (graphemeIndex > 0 ? graphemePrefixWidths[graphemeIndex - 1]! : 0)
+}
+
 function fitSoftHyphenBreak(
   graphemeWidths: number[],
   initialWidth: number,
   maxWidth: number,
   lineFitEpsilon: number,
   discretionaryHyphenWidth: number,
+  cumulativeWidths: boolean,
 ): { fitCount: number, fittedWidth: number } {
   let fitCount = 0
   let fittedWidth = initialWidth
 
   while (fitCount < graphemeWidths.length) {
-    const nextWidth = fittedWidth + graphemeWidths[fitCount]!
-    const nextLineWidth =
-      fitCount + 1 < graphemeWidths.length ? nextWidth + discretionaryHyphenWidth : nextWidth
+    const nextWidth = cumulativeWidths
+      ? initialWidth + graphemeWidths[fitCount]!
+      : fittedWidth + graphemeWidths[fitCount]!
+    const nextLineWidth = fitCount + 1 < graphemeWidths.length
+      ? nextWidth + discretionaryHyphenWidth
+      : nextWidth
     if (nextLineWidth > maxWidth + lineFitEpsilon) break
     fittedWidth = nextWidth
     fitCount++
@@ -70,9 +87,10 @@ export function normalizeLineStart(
 }
 
 export function countPreparedLines(prepared: PreparedLineBreakData, maxWidth: number): number {
-  const { widths, kinds, breakableWidths } = prepared
+  const { widths, kinds, breakableWidths, breakablePrefixWidths } = prepared
   if (widths.length === 0) return 0
-  const lineFitEpsilon = getEngineProfile().lineFitEpsilon
+  const engineProfile = getEngineProfile()
+  const lineFitEpsilon = engineProfile.lineFitEpsilon
   if (kinds.includes('soft-hyphen')) {
     return walkPreparedLines(prepared, maxWidth)
   }
@@ -81,32 +99,27 @@ export function countPreparedLines(prepared: PreparedLineBreakData, maxWidth: nu
   let lineW = 0
   let hasContent = false
 
-  function appendBreakableSegmentCounting(segmentIndex: number): void {
-    const gWidths = breakableWidths[segmentIndex]!
-
-    for (let g = 0; g < gWidths.length; g++) {
-      const gw = gWidths[g]!
-
-      if (!hasContent) {
-        lineW = gw
-        lineCount++
-        hasContent = true
-        continue
-      }
-
-      if (lineW + gw > maxWidth + lineFitEpsilon) {
-        lineCount++
-        lineW = gw
-      } else {
-        lineW += gw
-      }
-    }
-  }
-
   function placeOnFreshLine(segmentIndex: number): void {
     const w = widths[segmentIndex]!
     if (w > maxWidth && breakableWidths[segmentIndex] !== null) {
-      appendBreakableSegmentCounting(segmentIndex)
+      const gWidths = breakableWidths[segmentIndex]!
+      const gPrefixWidths = breakablePrefixWidths[segmentIndex] ?? null
+      lineW = 0
+      for (let g = 0; g < gWidths.length; g++) {
+        const gw = getBreakableAdvance(
+          gWidths,
+          gPrefixWidths,
+          g,
+          engineProfile.preferPrefixWidthsForBreakableRuns,
+        )
+        if (lineW > 0 && lineW + gw > maxWidth + lineFitEpsilon) {
+          lineCount++
+          lineW = gw
+        } else {
+          if (lineW === 0) lineCount++
+          lineW += gw
+        }
+      }
     } else {
       lineW = w
       lineCount++
@@ -129,14 +142,9 @@ export function countPreparedLines(prepared: PreparedLineBreakData, maxWidth: nu
       if (isCollapsibleSpaceKind(kind)) {
         continue
       }
-
-      if (w > maxWidth && breakableWidths[i] !== null) {
-        appendBreakableSegmentCounting(i)
-      } else {
-        lineW = 0
-        hasContent = false
-        placeOnFreshLine(i)
-      }
+      lineW = 0
+      hasContent = false
+      placeOnFreshLine(i)
     } else {
       lineW = newW
     }
@@ -154,9 +162,10 @@ export function walkPreparedLines(
   maxWidth: number,
   onLine?: (line: InternalLayoutLine) => void,
 ): number {
-  const { widths, kinds, breakableWidths, discretionaryHyphenWidth } = prepared
+  const { widths, kinds, breakableWidths, breakablePrefixWidths, discretionaryHyphenWidth } = prepared
   if (widths.length === 0) return 0
-  const lineFitEpsilon = getEngineProfile().lineFitEpsilon
+  const engineProfile = getEngineProfile()
+  const lineFitEpsilon = engineProfile.lineFitEpsilon
 
   let lineCount = 0
   let lineW = 0
@@ -225,8 +234,14 @@ export function walkPreparedLines(
 
   function appendBreakableSegmentFrom(segmentIndex: number, startGraphemeIndex: number): void {
     const gWidths = breakableWidths[segmentIndex]!
+    const gPrefixWidths = breakablePrefixWidths[segmentIndex] ?? null
     for (let g = startGraphemeIndex; g < gWidths.length; g++) {
-      const gw = gWidths[g]!
+      const gw = getBreakableAdvance(
+        gWidths,
+        gPrefixWidths,
+        g,
+        engineProfile.preferPrefixWidthsForBreakableRuns,
+      )
 
       if (!hasContent) {
         startLineAtGrapheme(segmentIndex, g, gw)
@@ -252,13 +267,17 @@ export function walkPreparedLines(
   function continueSoftHyphenBreakableSegment(segmentIndex: number): boolean {
     const gWidths = breakableWidths[segmentIndex]!
     if (gWidths === null) return false
-
+    const fitWidths = engineProfile.preferPrefixWidthsForBreakableRuns
+      ? breakablePrefixWidths[segmentIndex] ?? gWidths
+      : gWidths
+    const usesPrefixWidths = fitWidths !== gWidths
     const { fitCount, fittedWidth } = fitSoftHyphenBreak(
-      gWidths,
+      fitWidths,
       lineW,
       maxWidth,
       lineFitEpsilon,
       discretionaryHyphenWidth,
+      usesPrefixWidths,
     )
     if (fitCount === 0) return false
 
@@ -273,7 +292,11 @@ export function walkPreparedLines(
       return true
     }
 
-    emitCurrentLine(segmentIndex, fitCount, fittedWidth + discretionaryHyphenWidth)
+    emitCurrentLine(
+      segmentIndex,
+      fitCount,
+      fittedWidth + discretionaryHyphenWidth,
+    )
     appendBreakableSegmentFrom(segmentIndex, fitCount)
     return true
   }
@@ -312,6 +335,23 @@ export function walkPreparedLines(
         continue
       }
 
+      if (
+        pendingSoftBreakSegmentIndex >= 0 &&
+        engineProfile.preferEarlySoftHyphenBreak &&
+        pendingSoftBreakWidth <= maxWidth + lineFitEpsilon
+      ) {
+        emitCurrentLine(pendingSoftBreakSegmentIndex, 0, pendingSoftBreakWidth)
+        if (w > maxWidth && breakableWidths[i] !== null) {
+          appendBreakableSegment(i)
+        } else {
+          startLineAtSegment(i, w)
+        }
+        if (kind === 'space' || kind === 'zero-width-break') {
+          clearPendingSoftBreak()
+        }
+        continue
+      }
+
       if (pendingSoftBreakSegmentIndex >= 0 && continueSoftHyphenBreakableSegment(i)) {
         continue
       }
@@ -330,6 +370,7 @@ export function walkPreparedLines(
       }
 
       if (w > maxWidth && breakableWidths[i] !== null) {
+        emitCurrentLine()
         appendBreakableSegment(i)
       } else {
         emitCurrentLine()
@@ -358,8 +399,9 @@ export function layoutNextLineRange(
   const normalizedStart = normalizeLineStart(prepared, start)
   if (normalizedStart === null) return null
 
-  const { widths, kinds, breakableWidths, discretionaryHyphenWidth } = prepared
-  const lineFitEpsilon = getEngineProfile().lineFitEpsilon
+  const { widths, kinds, breakableWidths, breakablePrefixWidths, discretionaryHyphenWidth } = prepared
+  const engineProfile = getEngineProfile()
+  const lineFitEpsilon = engineProfile.lineFitEpsilon
 
   let lineW = 0
   let hasContent = false
@@ -417,8 +459,14 @@ export function layoutNextLineRange(
 
   function appendBreakableSegmentFrom(segmentIndex: number, startGraphemeIndex: number): InternalLayoutLine | null {
     const gWidths = breakableWidths[segmentIndex]!
+    const gPrefixWidths = breakablePrefixWidths[segmentIndex] ?? null
     for (let g = startGraphemeIndex; g < gWidths.length; g++) {
-      const gw = gWidths[g]!
+      const gw = getBreakableAdvance(
+        gWidths,
+        gPrefixWidths,
+        g,
+        engineProfile.preferPrefixWidthsForBreakableRuns,
+      )
 
       if (!hasContent) {
         startLineAtGrapheme(segmentIndex, g, gw)
@@ -446,12 +494,17 @@ export function layoutNextLineRange(
 
     const gWidths = breakableWidths[segmentIndex] ?? null
     if (gWidths !== null) {
+      const fitWidths = engineProfile.preferPrefixWidthsForBreakableRuns
+        ? breakablePrefixWidths[segmentIndex] ?? gWidths
+        : gWidths
+      const usesPrefixWidths = fitWidths !== gWidths
       const { fitCount, fittedWidth } = fitSoftHyphenBreak(
-        gWidths,
+        fitWidths,
         lineW,
         maxWidth,
         lineFitEpsilon,
         discretionaryHyphenWidth,
+        usesPrefixWidths,
       )
 
       if (fitCount === gWidths.length) {
@@ -463,7 +516,11 @@ export function layoutNextLineRange(
       }
 
       if (fitCount > 0) {
-        return finishLine(segmentIndex, fitCount, fittedWidth + discretionaryHyphenWidth)
+        return finishLine(
+          segmentIndex,
+          fitCount,
+          fittedWidth + discretionaryHyphenWidth,
+        )
       }
     }
 
@@ -512,10 +569,20 @@ export function layoutNextLineRange(
         continue
       }
 
+      if (
+        pendingSoftBreakSegmentIndex >= 0 &&
+        engineProfile.preferEarlySoftHyphenBreak &&
+        pendingSoftBreakWidth <= maxWidth + lineFitEpsilon
+      ) {
+        return finishLine(pendingSoftBreakSegmentIndex, 0, pendingSoftBreakWidth)
+      }
+
       const softBreakLine = maybeFinishAtSoftHyphen(i)
       if (softBreakLine !== null) return softBreakLine
 
       if (w > maxWidth && breakableWidths[i] !== null) {
+        const currentLine = finishLine()
+        if (currentLine !== null) return currentLine
         const line = appendBreakableSegmentFrom(i, 0)
         if (line !== null) return line
       }

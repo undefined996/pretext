@@ -3,6 +3,7 @@ import {
   acquireBrowserAutomationLock,
   createBrowserSession,
   ensurePageServer,
+  getAvailablePort,
   loadHashReport,
   type BrowserKind,
 } from './browser-automation.ts'
@@ -169,7 +170,7 @@ function printEntries(entries: TaxonomyEntry[]): void {
 }
 
 const browser = parseBrowser(parseStringFlag('browser'))
-const port = parseNumberFlag('port', Number.parseInt(process.env['CORPUS_CHECK_PORT'] ?? '3210', 10))
+const requestedPort = parseNumberFlag('port', Number.parseInt(process.env['CORPUS_CHECK_PORT'] ?? '0', 10))
 const timeoutMs = parseNumberFlag('timeout', Number.parseInt(process.env['CORPUS_CHECK_TIMEOUT_MS'] ?? '180000', 10))
 const start = parseNumberFlag('start', 300)
 const end = parseNumberFlag('end', 900)
@@ -194,6 +195,7 @@ const session = createBrowserSession(browser)
 let serverProcess: ChildProcess | null = null
 
 try {
+  const port = await getAvailablePort(requestedPort === 0 ? null : requestedPort)
   const pageServer = await ensurePageServer(port, '/corpus', process.cwd())
   serverProcess = pageServer.process
   const baseUrl = `${pageServer.baseUrl}/corpus`

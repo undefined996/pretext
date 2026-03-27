@@ -16,6 +16,7 @@ Clone the repo, run `bun install`, then `bun start`, and open one of the `/demos
 
 - `pages/demos/bubbles.*`: message bubble shrinkwrap. Shows off `walkLineRanges()` for finding the tightest multiline width.
 - `pages/demos/dynamic-layout.*`: fixed-height editorial spread with logos as obstacles. Shows off `layoutNextLine()` and manual line routing.
+- `pages/demos/input-box.*`: auto-sizing multiline textarea. Shows off `layoutNextLine()` and the segment stream on live editable text.
 - `pages/demos/masonry/*`: virtualization / occlusion demo with many text cards. Shows off `prepare()` + `layout()` as a DOM-free height engine.
 
 ## API

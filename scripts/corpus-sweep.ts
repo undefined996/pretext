@@ -4,6 +4,7 @@ import {
   acquireBrowserAutomationLock,
   createBrowserSession,
   ensurePageServer,
+  getAvailablePort,
   loadHashReport,
   type BrowserKind,
 } from './browser-automation.ts'
@@ -132,7 +133,7 @@ function parseOptions(): SweepOptions {
     start,
     end,
     step,
-    port: parseNumberFlag('port', Number.parseInt(process.env['CORPUS_CHECK_PORT'] ?? '3210', 10)),
+    port: parseNumberFlag('port', Number.parseInt(process.env['CORPUS_CHECK_PORT'] ?? '0', 10)),
     browser: parseBrowser(parseStringFlag('browser')),
     output: parseStringFlag('output'),
     timeoutMs: parseNumberFlag('timeout', Number.parseInt(process.env['CORPUS_CHECK_TIMEOUT_MS'] ?? '180000', 10)),
@@ -207,6 +208,7 @@ function printSummary(summary: SweepSummary): void {
 }
 
 const options = parseOptions()
+options.port = await getAvailablePort(options.port === 0 ? null : options.port)
 const sources = await loadSources()
 
 const targets = options.all

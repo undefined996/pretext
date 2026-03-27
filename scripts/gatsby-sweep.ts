@@ -1,6 +1,6 @@
 import { execFileSync, spawn, spawnSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
-import { acquireBrowserAutomationLock } from './browser-automation.ts'
+import { acquireBrowserAutomationLock, getAvailablePort } from './browser-automation.ts'
 
 type GatsbyLineMismatch = {
   line: number
@@ -95,7 +95,7 @@ function parseOptions(): SweepOptions {
   const start = parseNumberFlag('start', 300)
   const end = parseNumberFlag('end', 900)
   const step = parseNumberFlag('step', 10)
-  const port = parseNumberFlag('port', Number.parseInt(process.env['GATSBY_CHECK_PORT'] ?? '3210', 10))
+  const port = parseNumberFlag('port', Number.parseInt(process.env['GATSBY_CHECK_PORT'] ?? '0', 10))
   const browser = (parseStringFlag('browser') ?? process.env['GATSBY_CHECK_BROWSER'] ?? 'chrome').toLowerCase()
   const diagnose = hasFlag('diagnose')
   const diagnoseLimit = parseNumberFlag('diagnose-limit', 6)
@@ -111,6 +111,7 @@ function parseOptions(): SweepOptions {
 }
 
 const options = parseOptions()
+options.port = await getAvailablePort(options.port === 0 ? null : options.port)
 const baseUrl = `http://localhost:${options.port}/gatsby`
 
 function runAppleScript(lines: string[]): string {

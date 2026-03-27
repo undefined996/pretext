@@ -1,13 +1,14 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer as createHttpServer, type Server as HttpServer } from 'node:http'
-import { createConnection, createServer as createNetServer } from 'node:net'
+import { createConnection } from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import {
   acquireBrowserAutomationLock,
   createBrowserSession,
   ensurePageServer,
+  getAvailablePort,
   loadHashReport,
   type BrowserKind,
 } from './browser-automation.ts'
@@ -68,6 +69,10 @@ type AccuracyReport = {
 
 const browser = (process.env['ACCURACY_CHECK_BROWSER'] ?? 'chrome').toLowerCase() as BrowserKind | 'firefox'
 const includeFullRows = process.argv.includes('--full')
+const reportTimeoutMs = Number.parseInt(
+  process.env['ACCURACY_CHECK_TIMEOUT_MS'] ?? (browser === 'safari' ? '240000' : '120000'),
+  10,
+)
 
 function parseStringFlag(name: string): string | null {
   const prefix = `--${name}=`
@@ -77,33 +82,6 @@ function parseStringFlag(name: string): string | null {
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
-}
-
-async function getAvailablePort(): Promise<number> {
-  const requestedPort = process.env['ACCURACY_CHECK_PORT']
-  if (requestedPort !== undefined) {
-    return Number.parseInt(requestedPort, 10)
-  }
-
-  return await new Promise((resolve, reject) => {
-    const server = createNetServer()
-    server.once('error', reject)
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address()
-      if (address === null || typeof address === 'string') {
-        reject(new Error('Failed to allocate a free port'))
-        return
-      }
-      const { port } = address
-      server.close(error => {
-        if (error) {
-          reject(error)
-          return
-        }
-        resolve(port)
-      })
-    })
-  })
 }
 
 async function canReachServer(baseUrl: string): Promise<boolean> {
@@ -383,7 +361,7 @@ async function loadBrowserReport(url: string, expectedRequestId: string): Promis
   }
   const session = createBrowserSession(browser)
   try {
-    return await loadHashReport<AccuracyReport>(session, url, expectedRequestId, browser)
+    return await loadHashReport<AccuracyReport>(session, url, expectedRequestId, browser, reportTimeoutMs)
   } finally {
     session.close()
   }
@@ -428,6 +406,15 @@ let proxyServer: HttpServer | null = null
 const lock = await acquireBrowserAutomationLock(browser)
 const output = parseStringFlag('output')
 const usePostedReport = includeFullRows && browser !== 'firefox'
+const requestedPortRaw = process.env['ACCURACY_CHECK_PORT']
+const requestedPort = (() => {
+  if (requestedPortRaw === undefined) return null
+  const parsed = Number.parseInt(requestedPortRaw, 10)
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`Invalid ACCURACY_CHECK_PORT: ${requestedPortRaw}`)
+  }
+  return parsed
+})()
 
 try {
   let baseUrl: string
@@ -445,7 +432,7 @@ try {
     proxyServer = proxy.server
     baseUrl = proxy.baseUrl
   } else {
-    const port = Number.parseInt(process.env['ACCURACY_CHECK_PORT'] ?? '3210', 10)
+    const port = await getAvailablePort(requestedPort)
     const pageServer = await ensurePageServer(port, '/accuracy', process.cwd())
     serverProcess = pageServer.process
     baseUrl = `${pageServer.baseUrl}/accuracy`
@@ -464,7 +451,7 @@ try {
           `&full=1` +
           `&reportEndpoint=${encodeURIComponent(reportServer.endpoint)}`
         session.navigate(url)
-        report = await reportServer.waitForReport()
+        report = await reportServer.waitForReport(reportTimeoutMs)
       } finally {
         session.close()
       }

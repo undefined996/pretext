@@ -3,6 +3,7 @@ import {
   acquireBrowserAutomationLock,
   createBrowserSession,
   ensurePageServer,
+  getAvailablePort,
   loadHashReport,
   type BrowserKind,
 } from './browser-automation.ts'
@@ -277,7 +278,7 @@ function printReport(report: CorpusReport): void {
 
 let serverProcess: ChildProcess | null = null
 const browser = parseBrowser(parseStringFlag('browser'))
-const port = parseNumberFlag('port', Number.parseInt(process.env['CORPUS_CHECK_PORT'] ?? '3210', 10))
+const requestedPort = parseNumberFlag('port', Number.parseInt(process.env['CORPUS_CHECK_PORT'] ?? '0', 10))
 const timeoutMs = parseNumberFlag('timeout', Number.parseInt(process.env['CORPUS_CHECK_TIMEOUT_MS'] ?? '180000', 10))
 const requestedMethod = parseStringFlag('method')
 if (requestedMethod !== null && requestedMethod !== 'span' && requestedMethod !== 'range') {
@@ -307,6 +308,7 @@ const session = createBrowserSession(browser)
 const diagnose = hasFlag('diagnose')
 
 try {
+  const port = await getAvailablePort(requestedPort === 0 ? null : requestedPort)
   const pageServer = await ensurePageServer(port, '/corpus', process.cwd())
   serverProcess = pageServer.process
   const baseUrl = `${pageServer.baseUrl}/corpus`

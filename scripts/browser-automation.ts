@@ -1,5 +1,6 @@
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process'
 import { closeSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createServer as createNetServer } from 'node:net'
 import { join } from 'node:path'
 
 export type BrowserKind = 'chrome' | 'safari'
@@ -34,6 +35,33 @@ function runAppleScript(lines: string[]): string {
 
 export function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+export async function getAvailablePort(requestedPort: number | null = null): Promise<number> {
+  if (requestedPort !== null && Number.isFinite(requestedPort) && requestedPort > 0) {
+    return requestedPort
+  }
+
+  return await new Promise((resolve, reject) => {
+    const server = createNetServer()
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address()
+      if (address === null || typeof address === 'string') {
+        reject(new Error('Failed to allocate a free port'))
+        return
+      }
+
+      const { port } = address
+      server.close(error => {
+        if (error) {
+          reject(error)
+          return
+        }
+        resolve(port)
+      })
+    })
+  })
 }
 
 const LOCK_DIR = join(process.env['TMPDIR'] ?? '/tmp', 'pretext-browser-automation-locks')

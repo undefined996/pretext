@@ -4,6 +4,7 @@ import {
   acquireBrowserAutomationLock,
   createBrowserSession,
   ensurePageServer,
+  getAvailablePort,
   loadHashReport,
   type BrowserKind,
 } from './browser-automation.ts'
@@ -84,7 +85,7 @@ function printReport(report: BenchmarkReport): void {
 }
 
 const browser = parseBrowser(parseStringFlag('browser'))
-const port = parseNumberFlag('port', Number.parseInt(process.env['BENCHMARK_CHECK_PORT'] ?? '3210', 10))
+const requestedPort = parseNumberFlag('port', Number.parseInt(process.env['BENCHMARK_CHECK_PORT'] ?? '0', 10))
 const output = parseStringFlag('output')
 
 let serverProcess: ChildProcess | null = null
@@ -92,6 +93,7 @@ const lock = await acquireBrowserAutomationLock(browser)
 const session = createBrowserSession(browser, { foreground: true })
 
 try {
+  const port = await getAvailablePort(requestedPort === 0 ? null : requestedPort)
   const pageServer = await ensurePageServer(port, '/benchmark', process.cwd())
   serverProcess = pageServer.process
   const baseUrl = `${pageServer.baseUrl}/benchmark`

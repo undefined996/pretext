@@ -423,17 +423,18 @@ describe('layout invariants', () => {
     expect(actual).toEqual(expected.lines)
   })
 
-  test('overlong breakable segments can fill the remaining line before wrapping', () => {
+  test('overlong breakable segments wrap onto a fresh line when the current line already has content', () => {
     const prepared = prepareWithSegments('foo abcdefghijk', FONT)
     const prefixWidth = prepared.widths[0]! + prepared.widths[1]!
     const wordBreaks = prepared.breakableWidths[2]!
     const width = prefixWidth + wordBreaks[0]! + wordBreaks[1]! + 0.1
 
     const batched = layoutWithLines(prepared, width, LINE_HEIGHT)
-    expect(batched.lines[0]?.text).toBe('foo ab')
+    expect(batched.lines[0]?.text).toBe('foo ')
+    expect(batched.lines[1]?.text.startsWith('ab')).toBe(true)
 
     const streamed = layoutNextLine(prepared, { segmentIndex: 0, graphemeIndex: 0 }, width)
-    expect(streamed?.text).toBe('foo ab')
+    expect(streamed?.text).toBe('foo ')
     expect(layout(prepared, width, LINE_HEIGHT).lineCount).toBe(batched.lineCount)
   })
 

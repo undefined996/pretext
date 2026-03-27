@@ -4,6 +4,7 @@ import {
   acquireBrowserAutomationLock,
   createBrowserSession,
   ensurePageServer,
+  getAvailablePort,
   loadHashReport,
   type BrowserKind,
 } from './browser-automation.ts'
@@ -350,7 +351,7 @@ function parseOptions(): MatrixOptions {
   return {
     id,
     browser: parseBrowser(parseStringFlag('browser')),
-    port: parseNumberFlag('port', Number.parseInt(process.env['CORPUS_CHECK_PORT'] ?? '3210', 10)),
+    port: parseNumberFlag('port', Number.parseInt(process.env['CORPUS_CHECK_PORT'] ?? '0', 10)),
     timeoutMs: parseNumberFlag('timeout', Number.parseInt(process.env['CORPUS_CHECK_TIMEOUT_MS'] ?? '180000', 10)),
     output: parseStringFlag('output'),
     samples,
@@ -409,6 +410,7 @@ function printSummary(summary: MatrixSummary): void {
 }
 
 const options = parseOptions()
+options.port = await getAvailablePort(options.port === 0 ? null : options.port)
 const sources = await loadSources()
 const meta = sources.find(source => source.id === options.id)
 if (meta === undefined) {

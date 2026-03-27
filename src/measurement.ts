@@ -5,11 +5,14 @@ export type SegmentMetrics = {
   containsCJK: boolean
   emojiCount?: number
   graphemeWidths?: number[] | null
+  graphemePrefixWidths?: number[] | null
 }
 
 export type EngineProfile = {
   lineFitEpsilon: number
   carryCJKAfterClosingQuote: boolean
+  preferPrefixWidthsForBreakableRuns: boolean
+  preferEarlySoftHyphenBreak: boolean
 }
 
 let measureContext: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null = null
@@ -66,6 +69,8 @@ export function getEngineProfile(): EngineProfile {
     cachedEngineProfile = {
       lineFitEpsilon: 0.005,
       carryCJKAfterClosingQuote: false,
+      preferPrefixWidthsForBreakableRuns: false,
+      preferEarlySoftHyphenBreak: false,
     }
     return cachedEngineProfile
   }
@@ -89,6 +94,8 @@ export function getEngineProfile(): EngineProfile {
   cachedEngineProfile = {
     lineFitEpsilon: isSafari ? 1 / 64 : 0.005,
     carryCJKAfterClosingQuote: isChromium,
+    preferPrefixWidthsForBreakableRuns: isSafari,
+    preferEarlySoftHyphenBreak: isSafari,
   }
   return cachedEngineProfile
 }
@@ -181,6 +188,27 @@ export function getSegmentGraphemeWidths(
 
   metrics.graphemeWidths = widths.length > 1 ? widths : null
   return metrics.graphemeWidths
+}
+
+export function getSegmentGraphemePrefixWidths(
+  seg: string,
+  metrics: SegmentMetrics,
+  cache: Map<string, SegmentMetrics>,
+  emojiCorrection: number,
+): number[] | null {
+  if (metrics.graphemePrefixWidths !== undefined) return metrics.graphemePrefixWidths
+
+  const prefixWidths: number[] = []
+  const graphemeSegmenter = getSharedGraphemeSegmenter()
+  let prefix = ''
+  for (const gs of graphemeSegmenter.segment(seg)) {
+    prefix += gs.segment
+    const prefixMetrics = getSegmentMetrics(prefix, cache)
+    prefixWidths.push(getCorrectedSegmentWidth(prefix, prefixMetrics, emojiCorrection))
+  }
+
+  metrics.graphemePrefixWidths = prefixWidths.length > 1 ? prefixWidths : null
+  return metrics.graphemePrefixWidths
 }
 
 export function getFontMeasurementState(font: string, needsEmojiCorrection: boolean): {

@@ -50,6 +50,7 @@ import {
   getCorrectedSegmentWidth,
   getEngineProfile,
   getFontMeasurementState,
+  getSegmentGraphemePrefixWidths,
   getSegmentGraphemeWidths,
   getSegmentMetrics,
   textMayContainEmoji,
@@ -82,6 +83,7 @@ type PreparedCore = {
   kinds: SegmentBreakKind[] // Break behavior per segment, e.g. ['text', 'space', 'text']
   segLevels: Int8Array | null // Rich-path bidi metadata for custom rendering; layout() never reads it
   breakableWidths: (number[] | null)[] // Grapheme widths for overflow-wrap segments, else null
+  breakablePrefixWidths: (number[] | null)[] // Cumulative grapheme prefix widths for narrow browser-policy shims
   discretionaryHyphenWidth: number // Visible width added when a soft hyphen is chosen as the break
 }
 
@@ -144,6 +146,7 @@ function createEmptyPrepared(includeSegments: boolean): InternalPreparedText | P
       kinds: [],
       segLevels: null,
       breakableWidths: [],
+      breakablePrefixWidths: [],
       discretionaryHyphenWidth: 0,
       segments: [],
     } as unknown as PreparedTextWithSegments
@@ -153,6 +156,7 @@ function createEmptyPrepared(includeSegments: boolean): InternalPreparedText | P
     kinds: [],
     segLevels: null,
     breakableWidths: [],
+    breakablePrefixWidths: [],
     discretionaryHyphenWidth: 0,
   } as unknown as InternalPreparedText
 }
@@ -176,6 +180,7 @@ function measureAnalysis(
   const kinds: SegmentBreakKind[] = []
   const segStarts = includeSegments ? [] as number[] : null
   const breakableWidths: (number[] | null)[] = []
+  const breakablePrefixWidths: (number[] | null)[] = []
   const segments = includeSegments ? [] as string[] : null
 
   function pushMeasuredSegment(
@@ -184,11 +189,13 @@ function measureAnalysis(
     kind: SegmentBreakKind,
     start: number,
     breakable: number[] | null,
+    breakablePrefix: number[] | null,
   ): void {
     widths.push(width)
     kinds.push(kind)
     segStarts?.push(start)
     breakableWidths.push(breakable)
+    breakablePrefixWidths.push(breakablePrefix)
     if (segments !== null) segments.push(text)
   }
 
@@ -199,7 +206,7 @@ function measureAnalysis(
     const segStart = analysis.starts[mi]!
 
     if (segKind === 'soft-hyphen') {
-      pushMeasuredSegment(segText, 0, segKind, segStart, null)
+      pushMeasuredSegment(segText, 0, segKind, segStart, null, null)
       continue
     }
 
@@ -232,7 +239,7 @@ function measureAnalysis(
 
         const unitMetrics = getSegmentMetrics(unitText, cache)
         const w = getCorrectedSegmentWidth(unitText, unitMetrics, emojiCorrection)
-        pushMeasuredSegment(unitText, w, 'text', segStart + unitStart, null)
+        pushMeasuredSegment(unitText, w, 'text', segStart + unitStart, null, null)
 
         unitText = grapheme
         unitStart = gs.index
@@ -241,7 +248,7 @@ function measureAnalysis(
       if (unitText.length > 0) {
         const unitMetrics = getSegmentMetrics(unitText, cache)
         const w = getCorrectedSegmentWidth(unitText, unitMetrics, emojiCorrection)
-        pushMeasuredSegment(unitText, w, 'text', segStart + unitStart, null)
+        pushMeasuredSegment(unitText, w, 'text', segStart + unitStart, null, null)
       }
       continue
     }
@@ -250,17 +257,18 @@ function measureAnalysis(
 
     if (segWordLike && segText.length > 1) {
       const graphemeWidths = getSegmentGraphemeWidths(segText, segMetrics, cache, emojiCorrection)
-      pushMeasuredSegment(segText, w, segKind, segStart, graphemeWidths)
+      const graphemePrefixWidths = getSegmentGraphemePrefixWidths(segText, segMetrics, cache, emojiCorrection)
+      pushMeasuredSegment(segText, w, segKind, segStart, graphemeWidths, graphemePrefixWidths)
     } else {
-      pushMeasuredSegment(segText, w, segKind, segStart, null)
+      pushMeasuredSegment(segText, w, segKind, segStart, null, null)
     }
   }
 
   const segLevels = segStarts === null ? null : computeSegmentLevels(analysis.normalized, segStarts)
   if (segments !== null) {
-    return { widths, kinds, segLevels, breakableWidths, discretionaryHyphenWidth, segments } as unknown as PreparedTextWithSegments
+    return { widths, kinds, segLevels, breakableWidths, breakablePrefixWidths, discretionaryHyphenWidth, segments } as unknown as PreparedTextWithSegments
   }
-  return { widths, kinds, segLevels, breakableWidths, discretionaryHyphenWidth } as unknown as InternalPreparedText
+  return { widths, kinds, segLevels, breakableWidths, breakablePrefixWidths, discretionaryHyphenWidth } as unknown as InternalPreparedText
 }
 
 function prepareInternal(text: string, font: string, includeSegments: boolean): InternalPreparedText | PreparedTextWithSegments {

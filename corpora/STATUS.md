@@ -25,7 +25,7 @@ Conventions:
 
 | Corpus | Chrome anchors | Chrome step=10 | Notes |
 |---|---:|---:|---|
-| `mixed-app-text` | exact at `300 / 600 / 800` | `60/61 exact` | remaining `710px` miss is SHY / extractor-sensitive |
+| `mixed-app-text` | exact at `300 / 600 / 800` | `60/61 exact` | remaining Chrome-only `710px` miss is SHY / extractor-sensitive; Safari is exact there again in height/line count |
 
 ## Long-Form Corpora
 
@@ -42,7 +42,7 @@ Conventions:
 | `my-cunning-heron-teacher` | Myanmar | exact | exact at anchors | `9/9 exact` | `56/61 exact` | real residual Myanmar canary; quote/follower and phrase-break classes remain |
 | `my-bad-deeds-return-to-you-teacher` | Myanmar | exact | exact | `8/9 exact` | `57/61 exact` | healthier than the first Myanmar text, but still shows the same broad quote+follower class in Chrome |
 | `ur-chughd` | Urdu | exact at `600 / 800`, `-76px` at `300` | exact at `600 / 800`, `-76px` at `300` | `4/9 exact` | `31/61 exact` | real Nastaliq/Naskh canary; broad negative field at narrow widths and local shaping/context drift |
-| `hi-eidgah` | Hindi | exact | not recently rerun | n/a | `61/61 exact` | Hindi coarse corpus is clean |
+| `hi-eidgah` | Hindi | exact | exact | n/a | `61/61 exact` | Hindi coarse corpus is clean |
 | `ar-risalat-al-ghufran-part-1` | Arabic | exact | exact at key sentinels | n/a | `61/61 exact` | Arabic coarse corpus is clean; fine sweep still has a small positive one-line field |
 | `ar-al-bukhala` | Arabic | exact | exact at anchors | not recently rerun | not fully rerun | large second Arabic canary; anchors are clean |
 | `he-masaot-binyamin-metudela` | Hebrew | exact | exact | n/a | `61/61 exact` | Hebrew coarse corpus is clean |

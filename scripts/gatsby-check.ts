@@ -3,6 +3,7 @@ import {
   acquireBrowserAutomationLock,
   createBrowserSession,
   ensurePageServer,
+  getAvailablePort,
   loadHashReport,
   type BrowserKind,
 } from './browser-automation.ts'
@@ -94,7 +95,7 @@ const widths = process.argv.slice(2)
   .filter(width => Number.isFinite(width))
 
 const targetWidths = widths.length > 0 ? widths : [300, 400, 600, 800]
-const port = Number.parseInt(process.env['GATSBY_CHECK_PORT'] ?? '3210', 10)
+const requestedPort = Number.parseInt(process.env['GATSBY_CHECK_PORT'] ?? '0', 10)
 const browser = (process.env['GATSBY_CHECK_BROWSER'] ?? 'chrome').toLowerCase() as BrowserKind
 const diagnosticMode = browser === 'safari' ? 'light' : 'full'
 
@@ -178,6 +179,7 @@ const lock = await acquireBrowserAutomationLock(browser)
 const session = createBrowserSession(browser)
 
 try {
+  const port = await getAvailablePort(requestedPort === 0 ? null : requestedPort)
   const pageServer = await ensurePageServer(port, '/gatsby', process.cwd())
   serverProcess = pageServer.process
   const baseUrl = `${pageServer.baseUrl}/gatsby`
