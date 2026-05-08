@@ -515,6 +515,18 @@ describe('prepare invariants', () => {
     expect(prepared.segments).toEqual([text])
   })
 
+  test('keeps numeric prefix and postfix line-break classes attached', () => {
+    expect(prepareWithSegments('$___', FONT).segments).toEqual(['$___'])
+    expect(prepareWithSegments('$500', FONT).segments).toEqual(['$500'])
+    expect(prepareWithSegments('500€', FONT).segments).toEqual(['500€'])
+    expect(prepareWithSegments('+500', FONT).segments).toEqual(['+500'])
+    expect(prepareWithSegments('−500', FONT).segments).toEqual(['−500'])
+    expect(prepareWithSegments('foo%bar', FONT).segments).toEqual(['foo%bar'])
+    expect(prepareWithSegments('50°C', FONT).segments).toEqual(['50°C'])
+    expect(prepareWithSegments('$(12.35)', FONT).segments).toEqual(['$(12.35)'])
+    expect(prepareWithSegments('-1/12', FONT).segments).toEqual(['-1/12'])
+  })
+
   test('keeps URL-like runs together as one breakable segment', () => {
     const prepared = prepareWithSegments('see https://example.com/reports/q3?lang=ar&mode=full now', FONT)
     expect(prepared.segments).toEqual([

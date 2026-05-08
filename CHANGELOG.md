@@ -10,6 +10,7 @@
 
 - CJK text followed by opening bracket annotations now wraps like browsers instead of leaving the opening bracket on the previous line (#148).
 - `{ wordBreak: 'keep-all' }` now handles no-space mixed Latin, numeric, and CJK text more like browsers.
+- Numeric prefix/postfix symbols like `$`, `%`, `€`, `+`, `−`, and `°` now stay attached to adjacent text the way browser line breaking does (#105).
 
 ## 0.0.5 - 2026-04-09
 
