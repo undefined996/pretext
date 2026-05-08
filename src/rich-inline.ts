@@ -327,6 +327,13 @@ function stepRichInlineLine(
       continue
     }
 
+    const itemOccupiedWidth = lineWidthForItem + item.extraWidth
+    const lineWidthContribution = gapBefore + itemOccupiedWidth
+
+    // The lower-level walker may force one unit to make progress. If that unit
+    // only fits on a fresh line, wrap before this rich item instead.
+    if (lineWidth > 0 && atItemStart && lineWidthContribution > remainingWidth) break lineLoop
+
     // If the only thing we can fit after paying the boundary gap is a partial
     // slice of the item's first segment, prefer wrapping before the item so we
     // keep whole-word-style boundaries when they exist. But once the current
@@ -361,14 +368,14 @@ function stepRichInlineLine(
     collectFragment?.(
       item,
       gapBefore,
-      lineWidthForItem + item.extraWidth,
+      itemOccupiedWidth,
       cloneCursor(cursor),
       {
         segmentIndex: lineEnd.segmentIndex,
         graphemeIndex: lineEnd.graphemeIndex,
       },
     )
-    lineWidth += gapBefore + lineWidthForItem + item.extraWidth
+    lineWidth += lineWidthContribution
     remainingWidth = Math.max(0, safeWidth - lineWidth)
 
     if (

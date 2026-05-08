@@ -846,6 +846,55 @@ describe('rich-inline invariants', () => {
     expect(layoutNextRichInlineLineRange(prepared, 120, firstLine!.end)).not.toBeNull()
     expect(firstLine!.end).toEqual(nextStart)
   })
+
+  test('rich inline item boundaries do not accept forced-progress overflow', () => {
+    const maxWidth = measureWidth('A', FONT) + 1
+    const prepared = prepareRichInline([
+      { text: 'A', font: FONT },
+      { text: 'C', font: FONT },
+      { text: 'D', font: FONT },
+    ])
+    const widths: number[] = []
+
+    const lineCount = walkRichInlineLineRanges(prepared, maxWidth, line => {
+      widths.push(line.width)
+    })
+
+    expect(widths).toEqual([
+      measureWidth('A', FONT),
+      measureWidth('C', FONT),
+      measureWidth('D', FONT),
+    ])
+    expect(measureRichInlineStats(prepared, maxWidth)).toEqual({
+      lineCount,
+      maxLineWidth: Math.max(...widths),
+    })
+  })
+
+  test('split CJK rich inline items stay inside the line width', () => {
+    const maxWidth = measureWidth('中', FONT) + 1
+    const prepared = prepareRichInline([
+      { text: '中', font: FONT },
+      { text: '国 ', font: FONT },
+      { text: '文', font: FONT },
+    ])
+    const widths: number[] = []
+
+    const lineCount = walkRichInlineLineRanges(prepared, maxWidth, range => {
+      const line = materializeRichInlineLineRange(prepared, range)
+      widths.push(line.width)
+    })
+
+    expect(widths).toEqual([
+      measureWidth('中', FONT),
+      measureWidth('国', FONT),
+      measureWidth('文', FONT),
+    ])
+    expect(measureRichInlineStats(prepared, maxWidth)).toEqual({
+      lineCount,
+      maxLineWidth: Math.max(...widths),
+    })
+  })
 })
 
 describe('layout invariants', () => {
