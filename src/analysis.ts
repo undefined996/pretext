@@ -643,8 +643,24 @@ const numericJoinerChars = new Set([
   '\u2014',
 ])
 
-const asciiPunctuationChainSegmentRe = /^[A-Za-z0-9_]+[.,:;]*$/
-const asciiPunctuationChainTrailingJoinersRe = /[.,:;]+$/
+const noSpacePunctuationChainJoiners = new Set(['.', ',', ':', ';'])
+
+function endsWithNoSpacePunctuationChainJoiner(text: string): boolean {
+  for (let end = text.length; end > 0;) {
+    const start = previousCodePointStart(text, end)
+    const ch = text.slice(start, end)
+    if (combiningMarkRe.test(ch)) {
+      end = start
+      continue
+    }
+    return noSpacePunctuationChainJoiners.has(ch)
+  }
+  return false
+}
+
+function isNoSpacePunctuationChainSegment(text: string, wordLike: boolean): boolean {
+  return wordLike && !isCJK(text)
+}
 
 function segmentContainsDecimalDigit(text: string): boolean {
   for (const ch of text) {
@@ -707,7 +723,7 @@ function mergeNumericRuns(segmentation: MergedSegmentation): MergedSegmentation 
   }
 }
 
-function mergeAsciiPunctuationChains(segmentation: MergedSegmentation): MergedSegmentation {
+function mergeNoSpacePunctuationChains(segmentation: MergedSegmentation): MergedSegmentation {
   const texts: string[] = []
   const isWordLike: boolean[] = []
   const kinds: SegmentBreakKind[] = []
@@ -718,21 +734,25 @@ function mergeAsciiPunctuationChains(segmentation: MergedSegmentation): MergedSe
     const kind = segmentation.kinds[i]!
     const wordLike = segmentation.isWordLike[i]!
 
-    if (kind === 'text' && wordLike && asciiPunctuationChainSegmentRe.test(text)) {
+    if (
+      kind === 'text' &&
+      wordLike &&
+      endsWithNoSpacePunctuationChainJoiner(text) &&
+      !isCJK(text)
+    ) {
       const mergedParts = [text]
-      let endsWithJoiners = asciiPunctuationChainTrailingJoinersRe.test(text)
+      let endsWithJoiners = true
       let j = i + 1
 
       while (
         endsWithJoiners &&
         j < segmentation.len &&
         segmentation.kinds[j] === 'text' &&
-        segmentation.isWordLike[j] &&
-        asciiPunctuationChainSegmentRe.test(segmentation.texts[j]!)
+        isNoSpacePunctuationChainSegment(segmentation.texts[j]!, segmentation.isWordLike[j]!)
       ) {
         const nextText = segmentation.texts[j]!
         mergedParts.push(nextText)
-        endsWithJoiners = asciiPunctuationChainTrailingJoinersRe.test(nextText)
+        endsWithJoiners = endsWithNoSpacePunctuationChainJoiner(nextText)
         j++
       }
 
@@ -1137,7 +1157,7 @@ function buildMergedSegmentation(
     starts: mergedStarts,
   })
   const withMergedUrls = carryTrailingForwardStickyAcrossCJKBoundary(
-    mergeAsciiPunctuationChains(
+    mergeNoSpacePunctuationChains(
       splitHyphenatedNumericRuns(mergeNumericRuns(mergeUrlQueryRuns(mergeUrlLikeRuns(compacted)))),
     ),
   )

@@ -484,8 +484,11 @@ describe('prepare invariants', () => {
     ])
   })
 
-  test('keeps no-space ascii punctuation chains together as one breakable segment', () => {
-    const prepared = prepareWithSegments('foo;bar foo:bar foo,bar foo.bar as;lkdfjals;k', FONT)
+  test('keeps no-space punctuation chains together as one breakable segment', () => {
+    const prepared = prepareWithSegments(
+      'foo;bar foo:bar foo,bar foo.bar as;lkdfjals;k ééé.ééé αβγ.δεζ אבג.דהו',
+      FONT,
+    )
     expect(prepared.segments).toEqual([
       'foo;bar',
       ' ',
@@ -496,6 +499,12 @@ describe('prepare invariants', () => {
       'foo.bar',
       ' ',
       'as;lkdfjals;k',
+      ' ',
+      'ééé.ééé',
+      ' ',
+      'αβγ.δεζ',
+      ' ',
+      'אבג.דהו',
     ])
   })
 
