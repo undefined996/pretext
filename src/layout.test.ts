@@ -21,7 +21,9 @@ let layout: LayoutModule['layout']
 let layoutWithLines: LayoutModule['layoutWithLines']
 let layoutNextLine: LayoutModule['layoutNextLine']
 let layoutNextLineRange: LayoutModule['layoutNextLineRange']
+let materializeLineRange: LayoutModule['materializeLineRange']
 let measureLineStats: LayoutModule['measureLineStats']
+let measureNaturalWidth: LayoutModule['measureNaturalWidth']
 let walkLineRanges: LayoutModule['walkLineRanges']
 let clearCache: LayoutModule['clearCache']
 let setLocale: LayoutModule['setLocale']
@@ -280,7 +282,9 @@ beforeAll(async () => {
     layoutWithLines,
     layoutNextLine,
     layoutNextLineRange,
+    materializeLineRange,
     measureLineStats,
+    measureNaturalWidth,
     walkLineRanges,
     clearCache,
     setLocale,
@@ -1425,6 +1429,16 @@ describe('layout invariants', () => {
     })))
   })
 
+  test('materializeLineRange reproduces streamed layout lines', () => {
+    const prepared = prepareWithSegments('foo trans\u00ADatlantic said "hello" to 世界 and waved.', FONT)
+    const width = prepared.widths[0]! + prepared.widths[1]! + prepared.widths[2]! + prepared.breakableFitAdvances[4]![0]! + prepared.discretionaryHyphenWidth + 0.1
+    const expected = layoutWithLines(prepared, width, LINE_HEIGHT).lines[0]!
+    const range = layoutNextLineRange(prepared, { segmentIndex: 0, graphemeIndex: 0 }, width)
+
+    expect(range).not.toBeNull()
+    expect(materializeLineRange(prepared, range!)).toEqual(expected)
+  })
+
   test('measureLineStats matches walked line count and widest line', () => {
     const prepared = prepareWithSegments('foo trans\u00ADatlantic said "hello" to 世界 and waved.', FONT)
     const width = prepared.widths[0]! + prepared.widths[1]! + prepared.widths[2]! + prepared.breakableFitAdvances[4]![0]! + prepared.discretionaryHyphenWidth + 0.1
@@ -1440,6 +1454,12 @@ describe('layout invariants', () => {
       lineCount: walkedLineCount,
       maxLineWidth: walkedMaxLineWidth,
     })
+  })
+
+  test('measureNaturalWidth returns the widest forced line', () => {
+    const prepared = prepareWithSegments('wide line\nfit\nmid', FONT, { whiteSpace: 'pre-wrap' })
+
+    expect(measureNaturalWidth(prepared)).toBe(measureWidth('wide line', FONT))
   })
 
   test('line-break geometry helpers stay aligned with streamed line ranges', () => {
