@@ -10,7 +10,7 @@
 ### Fixed
 
 - `{ wordBreak: 'keep-all' }` now handles no-space mixed Latin, numeric, and CJK text more like browsers.
-- No-space punctuation chains now stay together for non-ASCII word-like text too, instead of only ASCII words.
+- No-space punctuation and symbol chains now stay together for non-ASCII word-like text too, instead of only ASCII words (#169).
 - Opening punctuation such as `¡`, `¿`, German low quotes, and `⸘` now stays with the following word instead of dangling at line end (#165).
 - Numeric prefix/postfix symbols like `$`, `%`, `€`, `+`, `−`, and `°` now stay attached to adjacent text the way browser line breaking does (#105).
 - Soft-hyphen breaks now stay at the soft-hyphen insertion point instead of pulling post-hyphen graphemes onto the broken line (#162).

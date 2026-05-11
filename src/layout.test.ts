@@ -595,6 +595,27 @@ describe('prepare invariants', () => {
     ])
   })
 
+  test('keeps no-space word-internal symbol chains together as one breakable segment', () => {
+    for (const symbol of ['`', '~', '!', '@', '#', '^', '&', '*', '=', '/', '{', '}', '[', ']', '|', '"', '<', '>', '♂', '╥', '∟', '┌']) {
+      expect(prepareWithSegments(`foo${symbol}bar`, FONT).segments).toEqual([`foo${symbol}bar`])
+    }
+
+    expect(prepareWithSegments('foo#$bar', FONT).segments).toEqual(['foo#$bar'])
+    expect(prepareWithSegments('#hashtag mention@domain', FONT).segments).toEqual([
+      '#hashtag',
+      ' ',
+      'mention@domain',
+    ])
+  })
+
+  test('keeps browser break symbols out of no-space word-internal symbol chains', () => {
+    expect(prepareWithSegments('foo?bar', FONT).segments).toEqual(['foo?', 'bar'])
+    expect(prepareWithSegments('foo—bar', FONT).segments).toEqual(['foo', '—', 'bar'])
+    expect(prepareWithSegments('foo…bar', FONT).segments).toEqual(['foo…', 'bar'])
+    expect(prepareWithSegments('foo‼bar', FONT).segments).toEqual(['foo', '‼', 'bar'])
+    expect(prepareWithSegments('foo🙂bar', FONT).segments).toEqual(['foo', '🙂', 'bar'])
+  })
+
   test('keeps numeric time ranges together', () => {
     const prepared = prepareWithSegments('window 7:00-9:00 only', FONT)
     expect(prepared.segments).toEqual(['window', ' ', '7:00-', '9:00', ' ', 'only'])
@@ -729,7 +750,7 @@ describe('prepare invariants', () => {
     expect(prepareWithSegments('東京(Tokyo)と', FONT).segments).toEqual(['東', '京', '(Tokyo)', 'と'])
     expect(prepareWithSegments('北京(Beijing)和', FONT).segments).toEqual(['北', '京', '(Beijing)', '和'])
     expect(prepareWithSegments('참조[1]와', FONT).segments).toEqual(['참', '조', '[1]', '와'])
-    expect(prepareWithSegments('AB(CD)', FONT).segments).toEqual(['AB(', 'CD)'])
+    expect(prepareWithSegments('AB(CD)', FONT).segments).toEqual(['AB(CD)'])
   })
 
   test('prepare and prepareWithSegments agree on layout behavior', () => {
